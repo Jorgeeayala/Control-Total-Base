@@ -1,0 +1,6 @@
+{
+  "appId": "com.sheetsremote.app",
+  "appName": "Sheets Remote",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
