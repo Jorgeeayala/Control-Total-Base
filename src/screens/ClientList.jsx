@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, useRef, useCallback, memo } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback, memo, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../api';
 import {
   pickNameColumn,
@@ -31,17 +32,6 @@ import {
 } from 'lucide-react';
 
 const STORAGE_KEY_TEAM = 'app-team-users';
-
-const listVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.04,
-      delayChildren: 0.05,
-    },
-  },
-};
 
 const itemVariants = {
   hidden: { opacity: 0, y: 14, scale: 0.98 },
@@ -78,7 +68,7 @@ function useIsTouchDevice() {
   return isTouch;
 }
 
-const SwipeableClientCard = memo(function SwipeableClientCard({
+const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
   row,
   nameKey,
   vencimientoKey,
@@ -98,7 +88,9 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
   itemVariants,
   isTouchDevice,
   headers,
-}) {
+  dataIndex,
+  virtualStyle,
+}, ref) {
   const [localOverrides, setLocalOverrides] = useState({});
   const [dragX, setDragX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -130,6 +122,16 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
   const presColName = presHeader || presentadoPorCol || (headers || []).find((h) => /presentad/i.test(h)) || null;
   const archColName = archHeader || archivadoPorCol || (headers || []).find((h) => /archiv/i.test(h)) || null;
 
+  // ¿La columna que se usa para Presentado/Archivado es EXCLUSIVAMENTE la
+  // de "...Por" (ej. "Archivado por:"), sin una columna SI/NO separada?
+  // Es el caso real de esta planilla: no existe "Presentado" ni "Archivado"
+  // como columna aparte, solo "Archivado por:" (y ahora "Presentado por:").
+  // En ese caso el estado NO es "SI"/"NO", es "¿tiene un nombre cargado o
+  // está vacía?" -- y al marcar, lo que se escribe ahí es directamente el
+  // nombre del usuario, no la palabra "SI".
+  const presIsStampOnly = Boolean(presColName) && presColName === presentadoPorCol;
+  const archIsStampOnly = Boolean(archColName) && archColName === archivadoPorCol;
+
   // Resolve values considering instant local optimistic state
   const getColValue = (col) => {
     if (!col) return '';
@@ -138,12 +140,22 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
   };
 
   const isPresSi = presColName
-    ? (getColValue(presColName) === 'SI' || getColValue(presColName) === 'SÍ')
+    ? presIsStampOnly
+      ? getColValue(presColName) !== ''
+      : (getColValue(presColName) === 'SI' || getColValue(presColName) === 'SÍ')
     : initialIsPresSi;
 
   const isArchSi = archColName
-    ? (getColValue(archColName) === 'SI' || getColValue(archColName) === 'SÍ')
+    ? archIsStampOnly
+      ? getColValue(archColName) !== ''
+      : (getColValue(archColName) === 'SI' || getColValue(archColName) === 'SÍ')
     : initialIsArchSi;
+
+  // Valor a escribir al marcar/desmarcar: si la columna es "solo sello",
+  // marcar = poner el nombre del usuario logueado; desmarcar = vaciarla.
+  // Si hay una columna SI/NO real, se sigue usando 'SI'/'NO' como siempre.
+  const nextPresValue = (marking) => (presIsStampOnly ? (marking ? _user : '') : (marking ? 'SI' : 'NO'));
+  const nextArchValue = (marking) => (archIsStampOnly ? (marking ? _user : '') : (marking ? 'SI' : 'NO'));
 
   const onToggleClick = (e, colName, targetVal) => {
     if (e && e.stopPropagation) e.stopPropagation();
@@ -173,14 +185,12 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
     if (offsetX > threshold || velocityX > 350) {
       // Swiped Right -> Toggle Presentado
       if (presColName) {
-        const targetVal = isPresSi ? 'NO' : 'SI';
-        onToggleClick(e, presColName, targetVal);
+        onToggleClick(e, presColName, nextPresValue(!isPresSi));
       }
     } else if (offsetX < -threshold || velocityX < -350) {
       // Swiped Left -> Toggle Archivado
       if (archColName) {
-        const targetVal = isArchSi ? 'NO' : 'SI';
-        onToggleClick(e, archColName, targetVal);
+        onToggleClick(e, archColName, nextArchValue(!isArchSi));
       }
     }
 
@@ -203,6 +213,8 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
 
   return (
     <motion.li
+      ref={ref}
+      data-index={dataIndex}
       className="swipe-card-wrapper"
       variants={itemVariants}
       style={{
@@ -211,7 +223,8 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
         borderRadius: 'var(--radius-md)',
         listStyle: 'none',
         userSelect: 'none',
-        touchAction: isTouchDevice ? 'none' : 'auto',
+        touchAction: isTouchDevice ? 'pan-y' : 'auto',
+        ...virtualStyle,
       }}
     >
       {/* Background action indicators (ONLY on touch devices when dragging) */}
@@ -290,7 +303,7 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
           alignItems: 'stretch',
           gap: '10px',
           backgroundColor: 'var(--bg-card)',
-          touchAction: isTouchDevice ? 'none' : 'auto',
+          touchAction: isTouchDevice ? 'pan-y' : 'auto',
           cursor: isTouchDevice ? (isSwiping ? 'grabbing' : 'grab') : 'pointer',
         }}
       >
@@ -319,6 +332,31 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
             </div>
           </div>
 
+          {/* Indicador visual persistente de Presentado/Archivado -- se
+              actualiza al instante (misma actualización optimista que
+              usan los toggles) tanto por swipe como por click, y queda
+              visible SIEMPRE (no solo durante el gesto de swipe), en
+              mobile y en PC. Sin mostrar el nombre de quién lo hizo, solo
+              el estado -- eso se mantiene chico a propósito. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+            {presColName && (
+              <span
+                className={`status-dot ${isPresSi ? 'status-dot-presentado' : ''}`}
+                title={`Presentado: ${isPresSi ? 'Sí' : 'No'}`}
+              >
+                <CheckCircle2 size={13} />
+              </span>
+            )}
+            {archColName && (
+              <span
+                className={`status-dot ${isArchSi ? 'status-dot-archivado' : ''}`}
+                title={`Archivado: ${isArchSi ? 'Sí' : 'No'}`}
+              >
+                <Archive size={13} />
+              </span>
+            )}
+          </div>
+
           <ChevronRight size={20} className="client-card-chevron" />
         </div>
 
@@ -329,7 +367,7 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
             <button
               type="button"
               className={`card-quick-toggle ${isPresSi ? 'is-active-si' : 'is-inactive-no'}`}
-              onClick={(e) => onToggleClick(e, presColName, isPresSi ? 'NO' : 'SI')}
+              onClick={(e) => onToggleClick(e, presColName, nextPresValue(!isPresSi))}
               title={`Alternar Presentado (${isPresSi ? 'SÍ' : 'NO'}${presUser ? ` por ${presUser}` : ''})`}
             >
               <span className="card-quick-label">Presentado</span>
@@ -345,7 +383,7 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
             <button
               type="button"
               className={`card-quick-toggle ${isArchSi ? 'is-active-si' : 'is-inactive-no'}`}
-              onClick={(e) => onToggleClick(e, archColName, isArchSi ? 'NO' : 'SI')}
+              onClick={(e) => onToggleClick(e, archColName, nextArchValue(!isArchSi))}
               title={`Alternar Archivado (${isArchSi ? 'SÍ' : 'NO'}${archUser ? ` por ${archUser}` : ''})`}
             >
               <span className="card-quick-label">Archivado</span>
@@ -394,7 +432,8 @@ const SwipeableClientCard = memo(function SwipeableClientCard({
       </motion.div>
     </motion.li>
   );
-});
+}));
+SwipeableClientCard.displayName = 'SwipeableClientCard';
 
 export default function ClientList({ user, year, month, onSelect, onChangeMonth, onNewClient }) {
   const isTouchDevice = useIsTouchDevice();
@@ -404,6 +443,10 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [selectedVencimiento, setSelectedVencimiento] = useState('todos');
+  // Controla el panel de filtros como bottom-sheet en mobile. En desktop
+  // este estado se ignora vía CSS: los filtros quedan siempre visibles
+  // como hasta ahora.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState('todos');
   const [selectedAssignedUser, setSelectedAssignedUser] = useState('todos');
   const [sortBy, setSortBy] = useState('alpha');
@@ -510,6 +553,16 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
   const nameKey = useMemo(() => (headers.length ? pickNameColumn(headers) : null), [headers]);
   const vencimientoKey = useMemo(() => findVencimientoColumn(headers), [headers]);
 
+  // Cantidad de filtros activos (sin contar la búsqueda por texto), para
+  // mostrar el badge en el botón "Filtros" del bottom-sheet mobile.
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedAssignedUser !== 'todos') count++;
+    if (selectedVencimiento !== 'todos') count++;
+    if (selectedStatus !== 'todos') count++;
+    return count;
+  }, [selectedAssignedUser, selectedVencimiento, selectedStatus]);
+
   // Stamp columns (Presentado por:, Archivado por:)
   const presentadoPorCol = useMemo(() => findUserStampColumn(headers, 'presentado'), [headers]);
   const archivadoPorCol = useMemo(() => findUserStampColumn(headers, 'archivado'), [headers]);
@@ -555,7 +608,15 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
   }, [headers, nameKey, vencimientoKey, presentadoPorCol, archivadoPorCol]);
 
   // Primary status column (usually Presentado)
-  const primaryStatusHeader = statusHeaders[0] || null;
+  // Antes esto tomaba "la primera columna tipo SI/NO que aparezca en la
+  // planilla", que no necesariamente era "Presentado" si esa columna no es
+  // la primera en tu hoja. Como el swipe/toggle siempre escribe en la
+  // columna "Presentado" específicamente (ver presColName más arriba), acá
+  // también hay que priorizar esa columna -- si no, las estadísticas de la
+  // Tabla Resumen podían estar contando una columna distinta a la que
+  // realmente se actualiza, y por eso el swipe no se reflejaba ahí.
+  const primaryStatusHeader =
+    statusHeaders.find((h) => /presentad/i.test(h)) || statusHeaders[0] || null;
 
   // Filter and Sort logic
   const filteredAndSorted = useMemo(() => {
@@ -583,7 +644,11 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
     if (selectedStatus !== 'todos' && primaryStatusHeader) {
       list = list.filter((row) => {
         const val = String(row[primaryStatusHeader] || '').trim().toUpperCase();
-        const isYes = val === 'SI' || val === 'SÍ';
+        // Si la columna de estado es "solo sello" (ej. "Presentado por:"
+        // sin una "Presentado" SI/NO separada), su propio valor no va a
+        // ser nunca literalmente "SI" -- va a tener un nombre o estar
+        // vacía. En ese caso, "tiene un nombre cargado" ES el "SÍ".
+        const isYes = val === 'SI' || val === 'SÍ' || (presentadoPorCol === primaryStatusHeader && val !== '');
         if (selectedStatus === 'presentado') return isYes;
         if (selectedStatus === 'pendiente') return !isYes;
         return true;
@@ -622,11 +687,30 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
     selectedVencimiento,
     selectedStatus,
     primaryStatusHeader,
+    presentadoPorCol,
     selectedAssignedUser,
     user,
     sortBy,
     nameKey,
   ]);
+
+  // --- Virtualización de la lista ---
+  // Antes se renderizaba un <SwipeableClientCard> real por cada cliente
+  // filtrado (podían ser cientos), cada uno con animaciones y gestos de
+  // arrastre activos todo el tiempo aunque estuviera fuera de pantalla.
+  // Con esto, sólo se montan en el DOM las tarjetas realmente visibles
+  // (+ un margen de `overscan`), y el resto se representa como espacio
+  // vacío calculado. La lista scrollea con la página normal (no hay un
+  // contenedor con su propio scroll), por eso se usa el virtualizador de
+  // "ventana" en vez del de contenedor.
+  const listRef = useRef(null);
+  const rowVirtualizer = useWindowVirtualizer({
+    count: filteredAndSorted.length,
+    estimateSize: () => 108, // alto aproximado de una tarjeta; se ajusta solo por fila via measureElement
+    overscan: 6,
+    gap: 10, // mismo valor que .client-list { gap: 10px } en styles.css
+    scrollMargin: listRef.current?.offsetTop ?? 0,
+  });
 
   // Compute Summary Statistics (Table Resumen)
   const summaryData = useMemo(() => {
@@ -719,32 +803,32 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
       const isPresentadoCol = /presentad/i.test(exactCol);
       const isArchivadoCol = /archiv/i.test(exactCol);
 
+      // ¿La columna que se está tocando (exactCol) ES ELLA MISMA la
+      // columna de sello (ej. "Presentado por:", "Archivado por:")? En ese
+      // caso `newValue` YA es el valor final completo (el nombre de
+      // usuario o '' vacío para desmarcar) -- no hay una columna SI/NO
+      // separada que además haya que completar en paralelo. Si hiciéramos
+      // el auto-fill de todas formas, se pisaría a sí misma (mismo key en
+      // `updates`) y el marcado nunca se guardaría bien.
+      const isStampColumnItself =
+        exactCol === presentadoPorCol || exactCol === archivadoPorCol;
+
       let updates = { [exactCol]: newValue };
 
-      // Auto-fill user stamp if toggling to SÍ, clear if setting to NO
-      if (newValue === 'SI') {
+      if (!isStampColumnItself) {
+        // Hay una columna SI/NO real (exactCol) y, aparte, una columna de
+        // sello que hay que completar o vaciar en paralelo.
+        const marking = newValue === 'SI' || newValue === 'SÍ';
         if (isPresentadoCol && presentadoPorCol && headers.includes(presentadoPorCol)) {
-          updates[presentadoPorCol] = user;
+          updates[presentadoPorCol] = marking ? user : '';
         } else if (isArchivadoCol && archivadoPorCol && headers.includes(archivadoPorCol)) {
-          updates[archivadoPorCol] = user;
+          updates[archivadoPorCol] = marking ? user : '';
         } else if (isPresentadoCol) {
           const genericStamp = headers.find((h) => /presentad.*por/i.test(h));
-          if (genericStamp) updates[genericStamp] = user;
+          if (genericStamp) updates[genericStamp] = marking ? user : '';
         } else if (isArchivadoCol) {
           const genericStamp = headers.find((h) => /archiv.*por/i.test(h));
-          if (genericStamp) updates[genericStamp] = user;
-        }
-      } else {
-        if (isPresentadoCol && presentadoPorCol && headers.includes(presentadoPorCol)) {
-          updates[presentadoPorCol] = '';
-        } else if (isArchivadoCol && archivadoPorCol && headers.includes(archivadoPorCol)) {
-          updates[archivadoPorCol] = '';
-        } else if (isPresentadoCol) {
-          const genericStamp = headers.find((h) => /presentad.*por/i.test(h));
-          if (genericStamp) updates[genericStamp] = '';
-        } else if (isArchivadoCol) {
-          const genericStamp = headers.find((h) => /archiv.*por/i.test(h));
-          if (genericStamp) updates[genericStamp] = '';
+          if (genericStamp) updates[genericStamp] = marking ? user : '';
         }
       }
 
@@ -793,7 +877,9 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
       <div className="screen-header">
         <div className="screen-title-group">
           <h2 className="screen-title">Clientes</h2>
-          <span className="screen-subtitle">
+          {/* En mobile este dato ya está en la píldora de período del
+              navbar, así que se oculta para no repetirlo (ver .hide-mobile) */}
+          <span className="screen-subtitle hide-mobile">
             Hoja: <strong>{formatPeriodLabel(month, year)}</strong>
           </span>
         </div>
@@ -820,8 +906,10 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </motion.button>
 
+          {/* Redundante en mobile: la píldora de período del navbar ya
+              hace exactamente esto. Se oculta solo ahí (.hide-mobile). */}
           <motion.button
-            className="back-btn"
+            className="back-btn hide-mobile"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onChangeMonth}
@@ -1003,13 +1091,52 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
           <Plus size={18} />
           <span>Nuevo Cliente</span>
         </motion.button>
+
+        {/* Disparador del panel de filtros: solo visible en mobile (CSS).
+            En desktop los filtros ya están siempre a la vista debajo. */}
+        {!loading && !error && rows.length > 0 && (
+          <button
+            type="button"
+            className="mobile-filters-trigger"
+            onClick={() => setFiltersOpen(true)}
+          >
+            <Filter size={16} />
+            <span>Filtros</span>
+            {activeFilterCount > 0 && (
+              <span className="mobile-filters-badge">{activeFilterCount}</span>
+            )}
+          </button>
+        )}
       </div>
 
-      {/* Filter and Sorting Panel */}
+      {/* Filter and Sorting Panel.
+          En desktop: se ve tal cual, siempre visible, como antes.
+          En mobile: se convierte en un bottom-sheet controlado por
+          `filtersOpen`, para no ocupar toda la pantalla de entrada. */}
       {!loading && !error && rows.length > 0 && (
-        <div className="filter-controls-card">
-          {/* Assigned User Filter Pills */}
-          <div className="filter-row">
+        <div className={`filters-panel-wrapper ${filtersOpen ? 'is-open' : ''}`}>
+          <div
+            className="filters-backdrop"
+            onClick={() => setFiltersOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="filter-controls-card">
+            <div className="filters-sheet-header">
+              <span className="filters-sheet-title">
+                <Filter size={15} /> Filtros
+              </span>
+              <button
+                type="button"
+                className="filters-sheet-close"
+                onClick={() => setFiltersOpen(false)}
+                title="Cerrar filtros"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Assigned User Filter Pills */}
+            <div className="filter-row">
             <span className="filter-label">
               <UserCheck size={14} /> Encargado:
             </span>
@@ -1133,6 +1260,7 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
               </motion.button>
             )}
           </div>
+          </div>
         </div>
       )}
 
@@ -1206,12 +1334,17 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
           <AnimatePresence mode="wait">
             <motion.ul
               key={`${query}_${selectedVencimiento}_${selectedStatus}_${selectedAssignedUser}_${sortBy}`}
+              ref={listRef}
               className="client-list"
-              variants={listVariants}
-              initial="hidden"
-              animate="visible"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.18 }}
+              style={{ position: 'relative', height: `${rowVirtualizer.getTotalSize()}px` }}
             >
-              {filteredAndSorted.map((row) => {
+              {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                const row = filteredAndSorted[virtualItem.index];
+                if (!row) return null;
+
                 // Extract Presentado por / Archivado por from row if available
                 const presUser =
                   presentadoPorCol && row[presentadoPorCol] ? String(row[presentadoPorCol]) : null;
@@ -1233,6 +1366,15 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
                 return (
                   <SwipeableClientCard
                     key={row._row}
+                    ref={rowVirtualizer.measureElement}
+                    dataIndex={virtualItem.index}
+                    virtualStyle={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualItem.start - rowVirtualizer.options.scrollMargin}px)`,
+                    }}
                     row={row}
                     nameKey={nameKey}
                     vencimientoKey={vencimientoKey}

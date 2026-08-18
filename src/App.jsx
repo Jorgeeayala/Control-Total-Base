@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import NamePicker from './screens/NamePicker';
 import YearPicker from './screens/YearPicker';
 import MonthPicker from './screens/MonthPicker';
@@ -45,7 +48,42 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('app-theme', theme);
+
+    // Mantiene los íconos de la barra de estado (hora, batería, señal)
+    // legibles según el tema: claros sobre el fondo oscuro de la app,
+    // oscuros sobre el fondo claro. Solo aplica en la app nativa (no
+    // hace nada en el navegador/PWA web).
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setStyle({ style: theme === 'dark' ? Style.Dark : Style.Light }).catch(() => {});
+    }
   }, [theme]);
+
+  // Botón / gesto "atrás" del sistema en Android: en vez de cerrar la app
+  // de una, navega hacia atrás DENTRO de la app, con la misma prioridad
+  // que ya usan los botones "volver" de cada pantalla. Si no hay nada más
+  // atrás (estamos en la pantalla de elegir año, la primera pantalla real
+  // después de elegir usuario), ahí sí cierra la app.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const listenerPromise = CapacitorApp.addListener('backButton', () => {
+      if (creatingWithHeaders) {
+        setCreatingWithHeaders(null);
+      } else if (selectedClient) {
+        setSelectedClient(null);
+      } else if (month) {
+        setMonth(null);
+      } else if (year) {
+        setYear(null);
+      } else {
+        CapacitorApp.exitApp();
+      }
+    });
+
+    return () => {
+      listenerPromise.then((listener) => listener.remove());
+    };
+  }, [creatingWithHeaders, selectedClient, month, year]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -61,7 +99,7 @@ export default function App() {
       <header className="app-navbar">
         <div className="navbar-content">
           <motion.div
-            className="brand-badge"
+            className="brand-badge hide-mobile"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -125,7 +163,7 @@ export default function App() {
                 <div className="avatar-badge" style={{ display: 'flex', alignItems: 'center' }}>
                   <User size={14} />
                 </div>
-                <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                <span className="nav-user-name" style={{ fontSize: '13px', fontWeight: 600 }}>
                   {user}
                 </span>
               </motion.button>

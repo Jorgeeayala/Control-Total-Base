@@ -81,6 +81,15 @@
   padding: 0;
 }
 
+html {
+  /* Red de seguridad: nada debería poder generar scroll horizontal en
+     mobile. Si algún elemento se pasa de ancho por error, esto evita que
+     la app entera "se corra" hacia un costado en vez de solo recortar
+     ese elemento puntual. */
+  overflow-x: hidden;
+  width: 100%;
+}
+
 body {
   font-family: var(--font-family);
   background-color: var(--bg-app);
@@ -88,6 +97,8 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 /* App Shell Layout */
@@ -105,7 +116,11 @@ body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-light);
-  padding: 12px 16px;
+  /* Con la app en modo edge-to-edge (ver MainActivity.java), el contenido
+     dibuja por debajo de la barra de estado del sistema -- este padding
+     extra empuja el navbar para que no quede tapado por ahí. En web/PWA
+     normal, env(safe-area-inset-top) es 0 y no cambia nada. */
+  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -228,7 +243,11 @@ body {
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  padding: 24px 16px 40px;
+  /* El padding-bottom extra es para el modo edge-to-edge: que el final
+     de cada pantalla (últimos botones, último cliente de la lista, etc.)
+     no quede tapado por el área de gestos/barra de navegación de Android.
+     env(safe-area-inset-bottom) es 0 en web/PWA normal. */
+  padding: 24px 16px calc(40px + env(safe-area-inset-bottom));
   flex: 1;
   animation: fadeIn 0.1s ease-out;
 }
@@ -527,9 +546,10 @@ body {
 /* Client Card List & Swipe Gestures */
 .client-list {
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  position: relative;
+  /* El alto real y la posición de cada tarjeta ahora los calcula el
+     virtualizador (@tanstack/react-virtual) e inyecta como estilos
+     inline por tarjeta -- por eso ya no hace falta flex/gap acá. */
 }
 
 .swipe-card-wrapper {
@@ -611,6 +631,35 @@ body {
 .client-card:hover .client-card-chevron {
   color: var(--primary);
   transform: translateX(2px);
+}
+
+/* Indicador persistente de Presentado/Archivado en la tarjeta -- chico a
+   propósito (solo un ícono, sin texto ni nombre) para no agrandar la
+   tarjeta. Gris cuando no está marcado, se colorea al instante al marcar
+   (por swipe o por click), tanto en mobile como en PC. */
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  color: var(--text-subtle);
+  background-color: var(--bg-card-hover);
+  border: 1px solid var(--border-light);
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.status-dot-presentado {
+  color: var(--success);
+  background-color: var(--success-light);
+  border-color: var(--success-border);
+}
+
+.status-dot-archivado {
+  color: #a78bfa;
+  background-color: rgba(167, 139, 250, 0.18);
+  border-color: rgba(167, 139, 250, 0.45);
 }
 
 /* Empty & Error State */
@@ -966,6 +1015,16 @@ body {
     padding: 0;
   }
 
+  /* Con el logo/texto "Control Clientes" oculto en mobile (via
+     .hide-mobile en App.jsx), .nav-pills pasa a ocupar todo el ancho
+     disponible y reparte la píldora de período, el toggle de tema y la
+     de usuario de forma pareja en vez de quedar todo apretado a la
+     izquierda donde antes estaba el logo. */
+  .nav-pills {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .brand-badge {
     font-size: 14px;
     gap: 6px;
@@ -979,6 +1038,15 @@ body {
   .pill-btn {
     padding: 4px 8px;
     font-size: 11px;
+  }
+
+  /* Nombres largos ya no rompen a 2 líneas contra el borde: se truncan
+     con "..." y el pill de usuario queda siempre en una sola línea. */
+  .nav-user-name {
+    max-width: 92px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .user-avatar-badge-static {
@@ -1029,11 +1097,75 @@ body {
     min-height: 38px;
   }
 
+  /* --- Filtros como bottom-sheet en mobile ---
+     .filters-panel-wrapper es el contenedor que en desktop no hace nada
+     (los filtros quedan inline, como siempre). Acá abajo se convierte en
+     una capa fija con backdrop + hoja deslizable desde abajo, para que no
+     ocupe toda la pantalla apenas se entra a la lista. */
+  .mobile-filters-trigger {
+    display: inline-flex;
+  }
+
+  /* Oculta info redundante en mobile (ej: el período repetido, que ya
+     está en la píldora del navbar) sin tocar nada en desktop. */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .filters-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .filters-panel-wrapper.is-open .filters-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .filters-sheet-header {
+    display: flex;
+  }
+
   /* Compact Filter Controls Card for Mobile */
   .filter-controls-card {
-    padding: 8px 10px;
-    margin-bottom: 10px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 61;
+    max-height: 78vh;
+    overflow-y: auto;
+    margin-bottom: 0;
+    padding: 12px 14px calc(16px + env(safe-area-inset-bottom));
     gap: 6px;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .filters-panel-wrapper.is-open .filter-controls-card {
+    transform: translateY(0);
+  }
+
+  /* Barrita de agarre, para que se lea como hoja deslizable y no como un
+     bloque de contenido cualquiera */
+  .filter-controls-card::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: var(--radius-full);
+    background-color: var(--border-light);
+    margin: 0 auto 8px;
   }
 
   .filter-row {
@@ -1244,6 +1376,76 @@ body {
   padding: 12px 16px;
   margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
+}
+
+/* --- Botón "Filtros" (disparador del bottom-sheet en mobile) ---
+   Oculto por defecto: en desktop los filtros ya están siempre visibles
+   debajo, así que este botón no tiene motivo para existir ahí. */
+.mobile-filters-trigger {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mobile-filters-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background-color: var(--primary);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* --- Cabecera propia del sheet (solo mobile) --- */
+.filters-sheet-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.filters-sheet-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.filters-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-card-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* Backdrop del bottom-sheet: no hace nada en desktop */
+.filters-backdrop {
+  display: none;
 }
 
 .filter-row {
@@ -1688,6 +1890,15 @@ body {
 
   .btn-primary {
     width: 100%;
+  }
+
+  /* En este ancho .list-actions pasa a columna: el botón de Filtros debe
+     acompañar ese mismo comportamiento para no quedar angosto y perdido
+     al lado de "Nuevo Cliente" apilado a ancho completo. */
+  .mobile-filters-trigger {
+    width: 100%;
+    justify-content: center;
+    height: 40px;
   }
 
   .picker-grid {

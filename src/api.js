@@ -1,4 +1,5 @@
 import { BACKEND_URL, API_TOKEN } from './config';
+import { enqueueUpdate, configureSaveQueue, onQueueStatusChange, flushNow } from './saveQueue';
 
 // Persistent & in-memory cache for instant navigation & zero latency
 const LOCAL_STORAGE_CACHE_KEY = 'sheets_remote_persistent_cache_v1';
@@ -70,6 +71,10 @@ async function post(body) {
   });
 }
 
+// La cola de guardado usa el mismo `post` (con sus retries y su token) para
+// mandar los batches de updates en segundo plano.
+configureSaveQueue({ post });
+
 export const api = {
   ping: () => get('ping'),
 
@@ -132,7 +137,8 @@ export const api = {
   },
 
   updateCell: async ({ year, sheet, user, row, column, value }) => {
-    // Actualización optimista inmediata en la memoria local
+    // Actualización optimista inmediata en la memoria local (esto es lo que
+    // hace que la UI se sienta instantánea, no depende de la red)
     const key = `${year}_${sheet}`;
     if (cache.read[key]) {
       const targetRow = cache.read[key].rows.find((r) => r._row === row);
@@ -142,9 +148,21 @@ export const api = {
       saveCache();
     }
 
-    const res = await post({ action: 'update', year, sheet, user, row, column, value });
-    return res;
+    // La petición real NO se manda al toque: se encola. Si llegan varias
+    // ediciones juntas (varios campos, varias tarjetas con swipe rápido),
+    // se agrupan en una sola petición al backend en vez de disparar N
+    // peticiones en paralelo que compiten por el lock de la hoja en Apps
+    // Script (esa competencia es la causa principal de la lentitud actual).
+    return enqueueUpdate({ year, sheet, user, row, column, value });
   },
+
+  // Estado de la cola en segundo plano ('idle' | 'syncing'), útil para un
+  // indicador sutil de sincronización en vez de un loader bloqueante.
+  onSyncStatusChange: onQueueStatusChange,
+
+  // Fuerza el guardado inmediato de lo que esté pendiente en la cola (por
+  // ejemplo, antes de salir de la pantalla de detalle).
+  flushPendingSaves: flushNow,
 
   createClient: async ({ year, sheet, user, values }) => {
     const res = await post({ action: 'create', year, sheet, user, values });
