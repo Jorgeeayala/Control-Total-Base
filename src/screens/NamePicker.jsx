@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { api } from '../api';
 import { STORAGE_KEY_USER } from '../config';
-import { Users, User, AlertCircle, RefreshCw, FileSpreadsheet } from 'lucide-react';
+import { Users, User, AlertCircle, RefreshCw } from 'lucide-react';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -140,16 +140,6 @@ export default function NamePicker({ onPick }) {
             <span>No se encontraron usuarios cargados en la pestaña "Usuarios".</span>
           </div>
         )}
-      </motion.div>
-
-      <motion.div
-        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-subtle)' }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.8 }}
-        transition={{ delay: 0.3 }}
-      >
-        <FileSpreadsheet size={14} />
-        <span>Sheets Remote Sync</span>
       </motion.div>
     </div>
   );

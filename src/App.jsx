@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import NamePicker from './screens/NamePicker';
 import YearPicker from './screens/YearPicker';
 import MonthPicker from './screens/MonthPicker';
@@ -53,8 +52,15 @@ export default function App() {
     // legibles según el tema: claros sobre el fondo oscuro de la app,
     // oscuros sobre el fondo claro. Solo aplica en la app nativa (no
     // hace nada en el navegador/PWA web).
+    // Mantiene los íconos de las barras del sistema (hora/batería arriba,
+    // gestos abajo) legibles según el tema. Desde Capacitor 8.3+ esto se
+    // hace con el SystemBars nativo (no el plugin @capacitor/status-bar
+    // viejo, que en Android 16 quedó sin efecto porque el sistema fuerza
+    // el modo "edge-to-edge" y ya no deja pintar un color de fondo fijo).
     if (Capacitor.isNativePlatform()) {
-      StatusBar.setStyle({ style: theme === 'dark' ? Style.Dark : Style.Light }).catch(() => {});
+      SystemBars.setStyle({
+        style: theme === 'dark' ? SystemBarsStyle.Dark : SystemBarsStyle.Light,
+      }).catch(() => {});
     }
   }, [theme]);
 

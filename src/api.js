@@ -34,7 +34,22 @@ async function fetchWithRetry(url, options = {}, retries = 3, delay = 400) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, options);
-      const data = await res.json();
+      // Leemos como texto primero (no directo .json()) para poder mostrar
+      // la respuesta cruda en el mensaje de error si no es JSON válido --
+      // así se puede diagnosticar sin necesitar cable USB ni DevTools.
+      const rawText = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        const preview = rawText.slice(0, 300).replace(/\s+/g, ' ').trim();
+        throw new Error(
+          `Respuesta no es JSON válido (HTTP ${res.status}) desde ${url}. ` +
+          `Primeros caracteres de la respuesta: "${preview}"`
+        );
+      }
+
       if (!data.ok) {
         throw new Error(data.error || 'Error desconocido del servidor');
       }

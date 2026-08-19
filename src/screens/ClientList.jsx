@@ -81,7 +81,7 @@ const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
   isPresSi: initialIsPresSi,
   isArchSi: initialIsArchSi,
   statusHeaders,
-  _user,
+  user: _user,
   onSelect,
   handleQuickToggle,
   getDisplayHeader,
