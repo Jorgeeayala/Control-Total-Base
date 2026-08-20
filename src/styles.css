@@ -240,6 +240,99 @@ body {
   box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
 }
 
+/* Menú hamburguesa (solo mobile, ver media query 640px para mostrarlo) */
+.mobile-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Backdrop de todo el drawer (cubre pantalla completa, cierra al tocar) */
+.mobile-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(1px);
+}
+
+/* Drawer: entra deslizándose desde el borde izquierdo hacia la derecha,
+   cubre toda la altura de la pantalla por encima del navbar. Queda con
+   lugar (debajo del toggle de tema) para ir sumando más opciones. */
+.mobile-drawer-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 56;
+  width: 78%;
+  max-width: 280px;
+  background-color: var(--bg-card);
+  border-right: 1px solid var(--border-light);
+  box-shadow: var(--shadow-md, 4px 0 24px rgba(0, 0, 0, 0.22));
+  padding: calc(14px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 14px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.mobile-drawer-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.mobile-drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-card-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mobile-menu-item:hover,
+.mobile-menu-item:active {
+  background-color: var(--bg-card-hover);
+}
+
 /* Screen Wrapper */
 .screen {
   width: 100%;
@@ -450,6 +543,7 @@ body {
 .search-wrapper {
   position: relative;
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
 }
@@ -463,6 +557,7 @@ body {
 
 .search-input {
   width: 100%;
+  min-width: 0;
   padding: 10px 36px 10px 38px;
   font-size: 15px;
   border: 1px solid var(--border-light);
@@ -521,6 +616,26 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* --- Botón "Filtros" (disparador del bottom-sheet en mobile) ---
+   Oculto por defecto: en desktop los filtros ya están siempre visibles
+   debajo, así que este botón no tiene motivo para existir ahí. El media
+   query de mobile (más abajo) lo pone en display:inline-flex. Esta regla
+   TIENE que ir antes que esa, o la pisa. */
+.mobile-filters-trigger {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 /* Stats Counter Badge */
@@ -1019,12 +1134,14 @@ body {
 
   /* Con el logo/texto "Control Clientes" oculto en mobile (via
      .hide-mobile en App.jsx), .nav-pills pasa a ocupar todo el ancho
-     disponible y reparte la píldora de período, el toggle de tema y la
-     de usuario de forma pareja en vez de quedar todo apretado a la
-     izquierda donde antes estaba el logo. */
+     disponible. El toggle de tema se oculta acá (.hide-mobile) porque
+     vive adentro del menú hamburguesa (izquierda): así la píldora de
+     período (el mes) queda centrada y bien visible, con el botón de
+     menú a la izquierda y la píldora de usuario a la derecha. */
   .nav-pills {
     width: 100%;
     justify-content: space-between;
+    gap: 8px;
   }
 
   .brand-badge {
@@ -1042,6 +1159,15 @@ body {
     font-size: 11px;
   }
 
+  /* La píldora de período pasa a ser el elemento protagonista de la
+     barra en mobile: ocupa el espacio disponible y se centra. */
+  .period-pill {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
   /* Nombres largos ya no rompen a 2 líneas contra el borde: se truncan
      con "..." y el pill de usuario queda siempre en una sola línea. */
   .nav-user-name {
@@ -1053,6 +1179,10 @@ body {
 
   .user-avatar-badge-static {
     display: none;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
   }
 
   .screen-header {
@@ -1380,23 +1510,12 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* --- Botón "Filtros" (disparador del bottom-sheet en mobile) ---
-   Oculto por defecto: en desktop los filtros ya están siempre visibles
-   debajo, así que este botón no tiene motivo para existir ahí. */
-.mobile-filters-trigger {
-  display: none;
-  align-items: center;
-  gap: 6px;
-  padding: 0 16px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-muted);
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  white-space: nowrap;
-}
+/* La regla base de .mobile-filters-trigger (display:none por defecto en
+   desktop) se movió arriba, junto a .list-actions, para que el orden en
+   cascada no vuelva a pisar el "display: inline-flex" del media query de
+   mobile (bug: acá abajo, sin condición de ancho, ganaba siempre por
+   venir después en el archivo, y el botón de Filtros quedaba invisible
+   en cualquier tamaño de pantalla). */
 
 .mobile-filters-badge {
   display: inline-flex;

@@ -11,7 +11,7 @@ import NewClient from './screens/NewClient';
 import AppSplashLoader from './components/AppSplashLoader';
 import { STORAGE_KEY_USER } from './config';
 import { formatPeriodLabel } from './utils';
-import { FileSpreadsheet, Calendar, User, Sun, Moon } from 'lucide-react';
+import { FileSpreadsheet, Calendar, User, Sun, Moon, Menu, X } from 'lucide-react';
 import './styles.css';
 
 const pageVariants = {
@@ -37,6 +37,7 @@ export default function App() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [creatingWithHeaders, setCreatingWithHeaders] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('app-theme');
@@ -95,6 +96,12 @@ export default function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  // Cierra el menú hamburguesa (mobile) cada vez que cambia de pantalla,
+  // para que no quede abierto tapando la siguiente vista.
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [year, month, selectedClient, creatingWithHeaders]);
+
   function handlePickUser(chosenUser) {
     setUser(chosenUser);
   }
@@ -102,6 +109,7 @@ export default function App() {
   // Navbar for authenticated screens
   const renderNavbar = () => {
     return (
+      <>
       <header className="app-navbar">
         <div className="navbar-content">
           <motion.div
@@ -116,9 +124,26 @@ export default function App() {
           </motion.div>
 
           <div className="nav-pills">
+            {/* Menú hamburguesa: solo visible en mobile (ver CSS), va
+                primero para quedar pegado a la izquierda del todo. Por
+                ahora solo tiene el toggle de tema; a futuro va a sumar
+                configuración y otras funciones. */}
+            {user && (
+              <motion.button
+                className="mobile-menu-btn"
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={() => setMobileMenuOpen(true)}
+                title="Menú"
+                aria-label="Abrir menú"
+              >
+                <Menu size={18} />
+              </motion.button>
+            )}
+
             {user && year && month && (
               <motion.button
-                className="pill-btn active"
+                className="pill-btn active period-pill"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
@@ -133,8 +158,10 @@ export default function App() {
               </motion.button>
             )}
 
+            {/* Toggle de tema: en mobile se oculta (.hide-mobile) porque
+                vive adentro del menú hamburguesa de la izquierda. */}
             <motion.button
-              className="theme-toggle-btn"
+              className="theme-toggle-btn hide-mobile"
               whileHover={{ scale: 1.08, rotate: 12 }}
               whileTap={{ scale: 0.9, rotate: -20 }}
               onClick={toggleTheme}
@@ -154,6 +181,8 @@ export default function App() {
               </AnimatePresence>
             </motion.button>
 
+            {/* Píldora de usuario: visible siempre, en desktop y mobile,
+                pegada a la derecha del todo. */}
             {user && (
               <motion.button
                 className="pill-btn"
@@ -177,6 +206,64 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Drawer del menú hamburguesa (solo mobile): se desliza desde la
+          izquierda hacia la derecha. Por ahora solo trae el toggle de
+          tema; queda con lugar para sumar "Configuración" y otras
+          opciones más adelante sin tener que rehacer la estructura.
+          IMPORTANTE: esto va A PROPÓSITO fuera del <header>, como
+          hermano y no como hijo. El navbar tiene backdrop-filter (efecto
+          vidrio esmerilado), y backdrop-filter/filter/transform en un
+          ancestro hace que los descendientes con position:fixed dejen de
+          posicionarse respecto a toda la pantalla y pasen a posicionarse
+          respecto a ese ancestro -- por eso antes el drawer y el fondo
+          oscuro quedaban atrapados en la franja del navbar en vez de
+          cubrir la pantalla completa. */}
+      <AnimatePresence>
+        {mobileMenuOpen && user && (
+          <>
+            <motion.div
+              className="mobile-drawer-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <motion.div
+              className="mobile-drawer-panel"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            >
+              <div className="mobile-drawer-header">
+                <span className="mobile-drawer-title">Menú</span>
+                <button
+                  type="button"
+                  className="mobile-drawer-close"
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-label="Cerrar menú"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="mobile-menu-item"
+                onClick={toggleTheme}
+              >
+                {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+                <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}</span>
+              </button>
+
+              {/* Próximamente: Configuración, Equipo, etc. */}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
     );
   };
 

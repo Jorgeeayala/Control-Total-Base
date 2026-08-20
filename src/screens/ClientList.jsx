@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef, useCallback, memo, forwardRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../api';
@@ -307,8 +308,8 @@ const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
           cursor: isTouchDevice ? (isSwiping ? 'grabbing' : 'grab') : 'pointer',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <div className="client-info">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+          <div className="client-info" style={{ flex: 1, minWidth: 0 }}>
             <div className="client-avatar-default">
               <Building2 size={20} />
             </div>
@@ -447,6 +448,29 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
   // este estado se ignora vía CSS: los filtros quedan siempre visibles
   // como hasta ahora.
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Detecta el mismo breakpoint que usa el CSS (640px) para decidir si el
+  // panel de filtros se renderiza inline (desktop, como siempre) o vía
+  // portal directo a document.body (mobile). El portal es necesario
+  // porque esta pantalla vive adentro de un <motion.div> (la animación
+  // de transición de página en App.jsx), y ese motion.div deja un
+  // "transform" aplicado incluso en reposo -- lo cual, por spec de CSS,
+  // convierte a ese motion.div en el contenedor de referencia de
+  // cualquier hijo con position:fixed, en vez de la pantalla completa.
+  // Sin el portal, el bottom-sheet de filtros queda "atrapado" adentro
+  // de esa caja (que puede ser más alta que el viewport visible), y ni
+  // se ve bien ni el fondo oscuro reacciona a los clics para cerrarlo.
+  const [isMobileLayout, setIsMobileLayout] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const handleChange = (e) => setIsMobileLayout(e.matches);
+    mq.addEventListener('change', handleChange);
+    return () => mq.removeEventListener('change', handleChange);
+  }, []);
+
   const [selectedStatus, setSelectedStatus] = useState('todos');
   const [selectedAssignedUser, setSelectedAssignedUser] = useState('todos');
   const [sortBy, setSortBy] = useState('alpha');
@@ -1113,7 +1137,8 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
           En desktop: se ve tal cual, siempre visible, como antes.
           En mobile: se convierte en un bottom-sheet controlado por
           `filtersOpen`, para no ocupar toda la pantalla de entrada. */}
-      {!loading && !error && rows.length > 0 && (
+      {!loading && !error && rows.length > 0 && (() => {
+        const filtersPanel = (
         <div className={`filters-panel-wrapper ${filtersOpen ? 'is-open' : ''}`}>
           <div
             className="filters-backdrop"
@@ -1262,7 +1287,14 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
           </div>
           </div>
         </div>
-      )}
+        );
+
+        // En mobile, portal directo a document.body para escapar del
+        // <motion.div> con transform que envuelve esta pantalla (ver
+        // comentario en isMobileLayout más arriba). En desktop, se
+        // renderiza inline como siempre, en su lugar natural del layout.
+        return isMobileLayout ? createPortal(filtersPanel, document.body) : filtersPanel;
+      })()}
 
       <div className="stats-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
