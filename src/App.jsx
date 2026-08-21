@@ -348,7 +348,14 @@ export default function App() {
     <div className="app-container">
       <AppSplashLoader videoSrc="/loading.mp4" minDurationMs={2200} />
       {renderNavbar()}
-      <AnimatePresence mode="wait">
+      {/* mode="popLayout" en vez de "wait": con "wait", la pantalla que
+          sale tenía que desmontarse del todo (y ClientDetail terminar su
+          carga inicial) ANTES de que la nueva empezara a aparecer -- ese
+          hueco se sentía como un microcorte al entrar/salir de un
+          cliente. Con "popLayout" ambas se animan superpuestas (la que
+          sale se saca del flujo normal así no empuja el layout), sin
+          instante en blanco en el medio. */}
+      <AnimatePresence mode="popLayout">
         {getScreenContent()}
       </AnimatePresence>
     </div>

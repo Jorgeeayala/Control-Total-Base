@@ -618,6 +618,31 @@ body {
   transform: none;
 }
 
+/* Modificador para el botón "Sincronizar usuarios": texto y gap un poco
+   más compactos para que entre en una sola línea incluso en modales
+   angostos, en vez de envolver a una segunda línea. */
+.btn-sync-users {
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Rotación típica de "sincronizando" para el ícono de refresh. La
+   duración de 0.9s es la que se siente "activa" sin marear; linear para
+   que no acelere/frene en cada vuelta. */
+.spin {
+  animation: spin-rotate 0.9s linear infinite;
+}
+
+@keyframes spin-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* --- Botón "Filtros" (disparador del bottom-sheet en mobile) ---
    Oculto por defecto: en desktop los filtros ya están siempre visibles
    debajo, así que este botón no tiene motivo para existir ahí. El media
@@ -638,15 +663,111 @@ body {
   white-space: nowrap;
 }
 
-/* Stats Counter Badge */
+/* Filter Bar & Quick Action Controls. Estas reglas base (desktop) TIENEN
+   que ir antes que la @media (max-width: 640px) de más abajo, porque esa
+   media query redeclara las mismas propiedades (display, gap,
+   border-radius, padding, margin-bottom) para el modo bottom-sheet de
+   mobile. Con la misma especificidad, en un empate gana la que aparece
+   después en el archivo -- así que si esta iba después (como estaba
+   antes), pisaba SIEMPRE a la versión de mobile sin importar el ancho de
+   pantalla. Eso era lo que dejaba el backdrop y el botón "X" de cerrar
+   completamente inertes en mobile: estaban en display:none pase lo que
+   pase, aunque el resto de la hoja sí se viera. */
+.filter-controls-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.mobile-filters-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background-color: var(--primary);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* --- Cabecera propia del sheet (solo mobile) --- */
+.filters-sheet-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.filters-sheet-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.filters-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-card-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* Backdrop del bottom-sheet: no hace nada en desktop */
+.filters-backdrop {
+  display: none;
+}
+
+/* Stats Counter Badge.
+   flex-wrap: si hay filtros activos (Encargado/Vencimiento) Y el número
+   "X de Y" es largo (ej. "395 de 395"), antes competían por el mismo
+   ancho de fila sin poder ceder -- en pantallas angostas se apretaban o,
+   por el overflow-x:hidden global, alguna etiqueta se recortaba fuera de
+   la vista. Ahora las etiquetas de filtro pasan a su propia línea si no
+   entran, sin afectar nunca al contador de la izquierda. */
 .stats-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 4px;
   font-size: 13px;
   color: var(--text-muted);
   margin-bottom: 12px;
   padding: 0 4px;
+}
+
+.stats-bar-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.stats-bar-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
 }
 
 .count-badge {
@@ -658,6 +779,8 @@ body {
   font-weight: 600;
   color: var(--text-main);
   font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Client Card List & Swipe Gestures */
@@ -1107,467 +1230,6 @@ body {
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 640px) {
-  /* Enforce 16px font-size on mobile inputs to prevent iOS automatic zoom */
-  input[type="text"],
-  input[type="search"],
-  select,
-  textarea,
-  .search-input,
-  .field-input,
-  .select-input,
-  .picker-search-input {
-    font-size: 16px !important;
-  }
-
-  .screen {
-    padding: 10px 10px calc(28px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
-  }
-
-  .app-navbar {
-    padding: calc(6px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 10px 6px;
-  }
-
-  .navbar-content {
-    padding: 0;
-  }
-
-  /* Con el logo/texto "Control Clientes" oculto en mobile (via
-     .hide-mobile en App.jsx), .nav-pills pasa a ocupar todo el ancho
-     disponible. El toggle de tema se oculta acá (.hide-mobile) porque
-     vive adentro del menú hamburguesa (izquierda): así la píldora de
-     período (el mes) queda centrada y bien visible, con el botón de
-     menú a la izquierda y la píldora de usuario a la derecha. */
-  .nav-pills {
-    width: 100%;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .brand-badge {
-    font-size: 14px;
-    gap: 6px;
-  }
-
-  .brand-icon-wrapper {
-    width: 28px;
-    height: 28px;
-  }
-
-  .pill-btn {
-    padding: 4px 8px;
-    font-size: 11px;
-  }
-
-  /* La píldora de período pasa a ser el elemento protagonista de la
-     barra en mobile: ocupa el espacio disponible y se centra. */
-  .period-pill {
-    flex: 1;
-    justify-content: center;
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-
-  /* Nombres largos ya no rompen a 2 líneas contra el borde: se truncan
-     con "..." y el pill de usuario queda siempre en una sola línea. */
-  .nav-user-name {
-    max-width: 92px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .user-avatar-badge-static {
-    display: none;
-  }
-
-  .mobile-menu-btn {
-    display: inline-flex;
-  }
-
-  .screen-header {
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-
-  .screen-title {
-    font-size: 17px;
-  }
-
-  .screen-nav-tabs {
-    padding: 3px;
-    gap: 3px;
-    margin-bottom: 10px;
-    border-radius: var(--radius-md);
-  }
-
-  .screen-nav-tab {
-    padding: 6px 8px;
-    font-size: 12px;
-    gap: 5px;
-  }
-
-  .list-actions {
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-
-  .search-input {
-    padding: 8px 30px 8px 32px;
-    min-height: 38px;
-  }
-
-  .search-icon {
-    left: 10px;
-    width: 15px;
-    height: 15px;
-  }
-
-  .btn-primary {
-    padding: 8px 12px;
-    font-size: 13px;
-    min-height: 38px;
-  }
-
-  /* --- Filtros como bottom-sheet en mobile ---
-     .filters-panel-wrapper es el contenedor que en desktop no hace nada
-     (los filtros quedan inline, como siempre). Acá abajo se convierte en
-     una capa fija con backdrop + hoja deslizable desde abajo, para que no
-     ocupe toda la pantalla apenas se entra a la lista. */
-  .mobile-filters-trigger {
-    display: inline-flex;
-  }
-
-  /* Oculta info redundante en mobile (ej: el período repetido, que ya
-     está en la píldora del navbar) sin tocar nada en desktop. */
-  .hide-mobile {
-    display: none !important;
-  }
-
-  .filters-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
-    z-index: 60;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-  }
-
-  .filters-panel-wrapper.is-open .filters-backdrop {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .filters-sheet-header {
-    display: flex;
-  }
-
-  /* Compact Filter Controls Card for Mobile */
-  .filter-controls-card {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 61;
-    max-height: 78vh;
-    overflow-y: auto;
-    margin-bottom: 0;
-    padding: 12px 14px calc(16px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
-    gap: 6px;
-    border-radius: 18px 18px 0 0;
-    border-bottom: none;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
-    transform: translateY(100%);
-    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-  }
-
-  .filters-panel-wrapper.is-open .filter-controls-card {
-    transform: translateY(0);
-  }
-
-  /* Barrita de agarre, para que se lea como hoja deslizable y no como un
-     bloque de contenido cualquiera */
-  .filter-controls-card::before {
-    content: '';
-    display: block;
-    width: 36px;
-    height: 4px;
-    border-radius: var(--radius-full);
-    background-color: var(--border-light);
-    margin: 0 auto 8px;
-  }
-
-  .filter-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  .filter-label {
-    min-width: auto;
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  .filter-pills {
-    display: flex;
-    align-items: center;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    width: 100%;
-    padding-bottom: 4px;
-    gap: 4px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .filter-pills::-webkit-scrollbar {
-    display: none;
-  }
-
-  .filter-pill {
-    padding: 3px 8px;
-    font-size: 11px;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .sort-select {
-    padding: 3px 8px;
-    font-size: 11px;
-    height: 32px;
-  }
-
-  /* Compact Client Card & Quick Toggles for Mobile */
-  .client-list {
-    gap: 8px;
-  }
-
-  .client-card {
-    padding: 10px 12px;
-    gap: 8px;
-    border-radius: var(--radius-sm);
-  }
-
-  .client-info {
-    gap: 10px;
-  }
-
-  .client-avatar-default {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-  }
-
-  .client-name {
-    font-size: 14px;
-    line-height: 1.25;
-  }
-
-  .client-card-chevron {
-    width: 16px;
-    height: 16px;
-  }
-
-  .swipe-hint-bar {
-    padding: 4px 8px;
-    font-size: 10px;
-    margin-bottom: 6px;
-  }
-
-  .stamps-row {
-    gap: 4px;
-  }
-
-  .user-stamp-badge {
-    padding: 2px 6px;
-    font-size: 10px;
-  }
-
-  .assigned-user-badge {
-    padding: 2px 6px;
-    font-size: 10px;
-  }
-
-  .card-quick-actions {
-    gap: 4px;
-    margin-top: 2px;
-  }
-
-  .card-quick-group {
-    padding: 2px 6px;
-    gap: 4px;
-    border-radius: var(--radius-sm);
-  }
-
-  .card-quick-label {
-    font-size: 10px;
-  }
-
-  .card-toggle-btn {
-    padding: 2px 6px;
-    font-size: 10px;
-    min-height: 24px;
-  }
-
-  .card-toggle-btn svg {
-    width: 10px;
-    height: 10px;
-  }
-
-  .hero-card {
-    padding: 16px 12px;
-  }
-
-  .picker-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
-
-  .picker-btn {
-    padding: 10px 8px;
-    min-height: 42px;
-  }
-
-  .year-row-btn {
-    padding: 10px 12px;
-    min-height: 44px;
-  }
-
-  .field-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .field-card {
-    padding: 10px;
-  }
-
-  .field-input-row {
-    gap: 6px;
-  }
-
-  .field-input {
-    height: 38px;
-  }
-
-  .field-save-btn {
-    height: 38px;
-    padding: 0 12px;
-    min-width: 70px;
-    font-size: 12px;
-  }
-
-  .yesno-toggle-btn {
-    min-height: 38px;
-    font-size: 12px;
-  }
-
-  .select-input {
-    height: 38px;
-  }
-
-  .client-detail-header {
-    padding: 10px 12px;
-    gap: 8px;
-  }
-
-  .client-detail-avatar {
-    width: 38px;
-    height: 38px;
-  }
-
-  .client-detail-title {
-    font-size: 16px;
-  }
-
-  .bottom-submit-bar {
-    flex-direction: column-reverse;
-    gap: 8px;
-  }
-
-  .bottom-submit-bar .btn-primary,
-  .bottom-submit-bar .btn-secondary {
-    width: 100%;
-    min-height: 42px;
-    font-size: 13px;
-  }
-}
-
-/* Filter Bar & Quick Action Controls */
-.filter-controls-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  box-shadow: var(--shadow-sm);
-}
-
-/* La regla base de .mobile-filters-trigger (display:none por defecto en
-   desktop) se movió arriba, junto a .list-actions, para que el orden en
-   cascada no vuelva a pisar el "display: inline-flex" del media query de
-   mobile (bug: acá abajo, sin condición de ancho, ganaba siempre por
-   venir después en el archivo, y el botón de Filtros quedaba invisible
-   en cualquier tamaño de pantalla). */
-
-.mobile-filters-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: var(--radius-full);
-  background-color: var(--primary);
-  color: white;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-/* --- Cabecera propia del sheet (solo mobile) --- */
-.filters-sheet-header {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 8px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.filters-sheet-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.filters-sheet-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-light);
-  background-color: var(--bg-card-hover);
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-/* Backdrop del bottom-sheet: no hace nada en desktop */
-.filters-backdrop {
-  display: none;
-}
 
 .filter-row {
   display: flex;
@@ -1991,6 +1653,24 @@ body {
   gap: 8px;
 }
 
+.team-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-card-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.team-modal-close:hover {
+  color: var(--text-main);
+}
+
 .team-member-chip {
   display: flex;
   align-items: center;
@@ -2002,6 +1682,412 @@ body {
   margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
+}
+
+
+@media (max-width: 640px) {
+  /* Enforce 16px font-size on mobile inputs to prevent iOS automatic zoom */
+  input[type="text"],
+  input[type="search"],
+  select,
+  textarea,
+  .search-input,
+  .field-input,
+  .select-input,
+  .picker-search-input {
+    font-size: 16px !important;
+  }
+
+  .screen {
+    padding: 10px 10px calc(28px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+
+  .app-navbar {
+    padding: calc(6px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 10px 6px;
+  }
+
+  .navbar-content {
+    padding: 0;
+  }
+
+  /* Con el logo/texto "Control Clientes" oculto en mobile (via
+     .hide-mobile en App.jsx), .nav-pills pasa a ocupar todo el ancho
+     disponible. El toggle de tema se oculta acá (.hide-mobile) porque
+     vive adentro del menú hamburguesa (izquierda): así la píldora de
+     período (el mes) queda centrada y bien visible, con el botón de
+     menú a la izquierda y la píldora de usuario a la derecha. */
+  .nav-pills {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .brand-badge {
+    font-size: 14px;
+    gap: 6px;
+  }
+
+  .brand-icon-wrapper {
+    width: 28px;
+    height: 28px;
+  }
+
+  .pill-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  /* La píldora de período pasa a ser el elemento protagonista de la
+     barra en mobile: ocupa el espacio disponible y se centra. */
+  .period-pill {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  /* Nombres largos ya no rompen a 2 líneas contra el borde: se truncan
+     con "..." y el pill de usuario queda siempre en una sola línea. */
+  .nav-user-name {
+    max-width: 92px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .user-avatar-badge-static {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  .screen-header {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .screen-title {
+    font-size: 17px;
+  }
+
+  .screen-nav-tabs {
+    padding: 3px;
+    gap: 3px;
+    margin-bottom: 10px;
+    border-radius: var(--radius-md);
+  }
+
+  .screen-nav-tab {
+    padding: 6px 8px;
+    font-size: 12px;
+    gap: 5px;
+  }
+
+  .list-actions {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .search-input {
+    padding: 8px 30px 8px 32px;
+    min-height: 38px;
+  }
+
+  .search-icon {
+    left: 10px;
+    width: 15px;
+    height: 15px;
+  }
+
+  .btn-primary {
+    padding: 8px 12px;
+    font-size: 13px;
+    min-height: 38px;
+  }
+
+  /* --- Filtros como bottom-sheet en mobile ---
+     .filters-panel-wrapper es el contenedor que en desktop no hace nada
+     (los filtros quedan inline, como siempre). Acá abajo se convierte en
+     una capa fija con backdrop + hoja deslizable desde abajo, para que no
+     ocupe toda la pantalla apenas se entra a la lista. */
+  .mobile-filters-trigger {
+    display: inline-flex;
+  }
+
+  /* Oculta info redundante en mobile (ej: el período repetido, que ya
+     está en la píldora del navbar) sin tocar nada en desktop. */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .filters-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .filters-panel-wrapper.is-open .filters-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Compact Filter Controls Card for Mobile.
+     El transform de abrir/cerrar y el drag-to-dismiss ahora los maneja
+     framer-motion directamente (ver el motion.div en ClientList.jsx),
+     así que acá ya NO va "transform" ni "transition: transform" -- si
+     quedan los dos (CSS + framer-motion) compitiendo por la misma
+     propiedad, el resultado es un tironeo/microcorte en vez de una
+     animación fluida. */
+  .filter-controls-card {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 61;
+    max-height: 78vh;
+    overflow-y: auto;
+    margin-bottom: 0;
+    padding: 0 14px calc(16px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    gap: 6px;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Barrita de agarre real (ya no es ::before): acá es donde arranca el
+     gesto de arrastre para cerrar el panel. */
+  .filter-drag-handle {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 8px;
+    margin: 0 -14px;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .filter-drag-handle-bar {
+    width: 36px;
+    height: 4px;
+    border-radius: var(--radius-full);
+    background-color: var(--border-light);
+  }
+
+  .filters-sheet-header {
+    display: flex;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  /* El botón de cerrar necesita su comportamiento normal de click, sin
+     heredar el touch-action:none del header (que es solo para el
+     gesto de arrastre). */
+  .filters-sheet-close {
+    touch-action: auto;
+  }
+
+  .filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .filter-label {
+    min-width: auto;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .filter-pills {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 4px;
+    gap: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .filter-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-pill {
+    padding: 3px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .sort-select {
+    padding: 3px 8px;
+    font-size: 11px;
+    height: 32px;
+  }
+
+  /* Compact Client Card & Quick Toggles for Mobile */
+  .client-list {
+    gap: 8px;
+  }
+
+  .client-card {
+    padding: 10px 12px;
+    gap: 8px;
+    border-radius: var(--radius-sm);
+  }
+
+  .client-info {
+    gap: 10px;
+  }
+
+  .client-avatar-default {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+  }
+
+  .client-name {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .client-card-chevron {
+    width: 16px;
+    height: 16px;
+  }
+
+  .swipe-hint-bar {
+    padding: 4px 8px;
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+
+  .stamps-row {
+    gap: 4px;
+  }
+
+  .user-stamp-badge {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .assigned-user-badge {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .card-quick-actions {
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  .card-quick-group {
+    padding: 2px 6px;
+    gap: 4px;
+    border-radius: var(--radius-sm);
+  }
+
+  .card-quick-label {
+    font-size: 10px;
+  }
+
+  .card-toggle-btn {
+    padding: 2px 6px;
+    font-size: 10px;
+    min-height: 24px;
+  }
+
+  .card-toggle-btn svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  .hero-card {
+    padding: 16px 12px;
+  }
+
+  .picker-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .picker-btn {
+    padding: 10px 8px;
+    min-height: 42px;
+  }
+
+  .year-row-btn {
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .field-card {
+    padding: 10px;
+  }
+
+  .field-input-row {
+    gap: 6px;
+  }
+
+  .field-input {
+    height: 38px;
+  }
+
+  .field-save-btn {
+    height: 38px;
+    padding: 0 12px;
+    min-width: 70px;
+    font-size: 12px;
+  }
+
+  .yesno-toggle-btn {
+    min-height: 38px;
+    font-size: 12px;
+  }
+
+  .select-input {
+    height: 38px;
+  }
+
+  .client-detail-header {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .client-detail-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .client-detail-title {
+    font-size: 16px;
+  }
+
+  .bottom-submit-bar {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .bottom-submit-bar .btn-primary,
+  .bottom-submit-bar .btn-secondary {
+    width: 100%;
+    min-height: 42px;
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 440px) {

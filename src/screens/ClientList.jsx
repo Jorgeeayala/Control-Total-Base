@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef, useCallback, memo, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useDragControls, useMotionValue, useTransform } from 'motion/react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../api';
 import {
@@ -93,9 +93,27 @@ const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
   virtualStyle,
 }, ref) {
   const [localOverrides, setLocalOverrides] = useState({});
-  const [dragX, setDragX] = useState(0);
+  // dragX era useState antes: eso disparaba un re-render de React en
+  // CADA frame del gesto de swipe (hasta 60 veces por segundo), compitiendo
+  // con la propia animación nativa de framer-motion que ya mueve la
+  // tarjeta por su cuenta -- ese doble trabajo por frame es lo que se
+  // sentía como "microcortes" al arrastrar. useMotionValue actualiza el
+  // valor sin pasar por el ciclo de render de React; los indicadores de
+  // fondo (color/opacidad/escala) se derivan con useTransform, que
+  // también actualiza el DOM directo, sin re-render.
+  const dragX = useMotionValue(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const isDraggingRef = useRef(false);
+
+  const bgIndicatorColor = useTransform(dragX, (v) => {
+    if (v > 15) return '#dcfce7';
+    if (v < -15) return '#f3e8ff';
+    return 'var(--bg-card-hover)';
+  });
+  const rightIndicatorOpacity = useTransform(dragX, (v) => (v > 10 ? Math.min(v / 50, 1) : 0));
+  const rightIndicatorScale = useTransform(dragX, (v) => (v > 10 ? Math.min(0.85 + v / 250, 1.1) : 0.85));
+  const leftIndicatorOpacity = useTransform(dragX, (v) => (v < -10 ? Math.min(-v / 50, 1) : 0));
+  const leftIndicatorScale = useTransform(dragX, (v) => (v < -10 ? Math.min(0.85 + -v / 250, 1.1) : 0.85));
 
   // Sync / reset local overrides when row data updates from parent
   useEffect(() => {
@@ -174,7 +192,7 @@ const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
 
   const handleDrag = (_e, info) => {
     if (!isTouchDevice) return;
-    setDragX(info.offset.x);
+    dragX.set(info.offset.x);
   };
 
   const handleDragEnd = (e, info) => {
@@ -195,7 +213,7 @@ const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
       }
     }
 
-    setDragX(0);
+    dragX.set(0);
     setIsSwiping(false);
 
     setTimeout(() => {
@@ -204,7 +222,7 @@ const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
   };
 
   const handleCardClick = () => {
-    if (isDraggingRef.current || Math.abs(dragX) > 10) return;
+    if (isDraggingRef.current || Math.abs(dragX.get()) > 10) return;
     onSelect(row);
   };
 
@@ -230,7 +248,7 @@ const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
     >
       {/* Background action indicators (ONLY on touch devices when dragging) */}
       {isTouchDevice && (
-        <div
+        <motion.div
           className="swipe-action-bg"
           style={{
             position: 'absolute',
@@ -242,47 +260,42 @@ const SwipeableClientCard = memo(forwardRef(function SwipeableClientCard({
             padding: '0 20px',
             fontWeight: 600,
             fontSize: '13px',
-            backgroundColor:
-              dragX > 15
-                ? '#dcfce7'
-                : dragX < -15
-                ? '#f3e8ff'
-                : 'var(--bg-card-hover)',
+            backgroundColor: bgIndicatorColor,
             transition: isSwiping ? 'none' : 'background-color 0.2s ease',
           }}
         >
           {/* Right swipe indicator (Left side) -> Presentado */}
-          <div
+          <motion.div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
               color: '#15803d',
-              opacity: dragX > 10 ? Math.min(dragX / 50, 1) : 0,
-              transform: `scale(${dragX > 10 ? Math.min(0.85 + dragX / 250, 1.1) : 0.85})`,
-              transition: isSwiping ? 'none' : 'all 0.2s ease',
+              opacity: rightIndicatorOpacity,
+              scale: rightIndicatorScale,
+              transition: isSwiping ? 'none' : 'opacity 0.2s ease',
             }}
           >
             <CheckCircle2 size={20} />
             <span>{isPresSi ? 'Quitar Presentado' : 'Marcar Presentado'}</span>
-          </div>
+          </motion.div>
 
           {/* Left swipe indicator (Right side) -> Archivado */}
-          <div
+          <motion.div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
               color: '#6b21a8',
-              opacity: dragX < -10 ? Math.min(-dragX / 50, 1) : 0,
-              transform: `scale(${dragX < -10 ? Math.min(0.85 + -dragX / 250, 1.1) : 0.85})`,
-              transition: isSwiping ? 'none' : 'all 0.2s ease',
+              opacity: leftIndicatorOpacity,
+              scale: leftIndicatorScale,
+              transition: isSwiping ? 'none' : 'opacity 0.2s ease',
             }}
           >
             <span>{isArchSi ? 'Quitar Archivado' : 'Marcar Archivado'}</span>
             <Archive size={20} />
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* Main Card (Draggable on mobile touch, static click target on PC) */}
@@ -448,6 +461,12 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
   // este estado se ignora vía CSS: los filtros quedan siempre visibles
   // como hasta ahora.
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Controla qué elemento puede iniciar el arrastre para cerrar el
+  // bottom-sheet de filtros: solo la barrita/header de arriba, no toda la
+  // tarjeta (si no, arrastrar para hacer scroll entre los pills de
+  // filtro se confundiría con el gesto de cerrar).
+  const filtersDragControls = useDragControls();
 
   // Detecta el mismo breakpoint que usa el CSS (640px) para decidir si el
   // panel de filtros se renderiza inline (desktop, como siempre) o vía
@@ -929,19 +948,6 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </motion.button>
-
-          {/* Redundante en mobile: la píldora de período del navbar ya
-              hace exactamente esto. Se oculta solo ahí (.hide-mobile). */}
-          <motion.button
-            className="back-btn hide-mobile"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onChangeMonth}
-            title="Cambiar período"
-          >
-            <Calendar size={15} />
-            <span>Período</span>
-          </motion.button>
         </div>
       </div>
 
@@ -1145,14 +1151,49 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
             onClick={() => setFiltersOpen(false)}
             aria-hidden="true"
           />
-          <div className="filter-controls-card">
-            <div className="filters-sheet-header">
+          <motion.div
+            className="filter-controls-card"
+            drag={isMobileLayout ? 'y' : false}
+            dragListener={false}
+            dragControls={filtersDragControls}
+            dragConstraints={{ top: 0, bottom: 600 }}
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            onDragEnd={(_e, info) => {
+              // Se cierra si arrastraste bastante hacia abajo, o con un
+              // gesto rápido aunque no haya recorrido mucha distancia
+              // (como cualquier bottom-sheet nativo).
+              if (info.offset.y > 90 || info.velocity.y > 500) {
+                setFiltersOpen(false);
+              }
+            }}
+            initial={false}
+            animate={isMobileLayout ? { y: filtersOpen ? 0 : '100%' } : { y: 0 }}
+            transition={{ type: 'spring', damping: 34, stiffness: 320 }}
+          >
+            {/* Barrita de agarre: acá arranca el gesto de arrastre (no en
+                toda la tarjeta), para no pisar el scroll de los filtros
+                de abajo cuando hay muchos. */}
+            <div
+              className="filter-drag-handle"
+              onPointerDown={(e) => {
+                if (isMobileLayout) filtersDragControls.start(e);
+              }}
+            >
+              <span className="filter-drag-handle-bar" />
+            </div>
+            <div
+              className="filters-sheet-header"
+              onPointerDown={(e) => {
+                if (isMobileLayout) filtersDragControls.start(e);
+              }}
+            >
               <span className="filters-sheet-title">
                 <Filter size={15} /> Filtros
               </span>
               <button
                 type="button"
                 className="filters-sheet-close"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => setFiltersOpen(false)}
                 title="Cerrar filtros"
               >
@@ -1285,7 +1326,7 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
               </motion.button>
             )}
           </div>
-          </div>
+          </motion.div>
         </div>
         );
 
@@ -1297,25 +1338,27 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
       })()}
 
       <div className="stats-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="stats-bar-count">
           <Users size={14} />
           <span>Mostrando</span>
           <span className="count-badge">
             {filteredAndSorted.length} de {rows.length}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: '12px', fontSize: '12px' }}>
-          {selectedAssignedUser !== 'todos' && (
-            <span>
-              Encargado: <strong>{selectedAssignedUser === 'mis' ? user : selectedAssignedUser}</strong>
-            </span>
-          )}
-          {selectedVencimiento !== 'todos' && (
-            <span>
-              Vencimiento: <strong>Día {selectedVencimiento}</strong>
-            </span>
-          )}
-        </div>
+        {(selectedAssignedUser !== 'todos' || selectedVencimiento !== 'todos') && (
+          <div className="stats-bar-tags">
+            {selectedAssignedUser !== 'todos' && (
+              <span>
+                Encargado: <strong>{selectedAssignedUser === 'mis' ? user : selectedAssignedUser}</strong>
+              </span>
+            )}
+            {selectedVencimiento !== 'todos' && (
+              <span>
+                Vencimiento: <strong>Día {selectedVencimiento}</strong>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {loading && (
@@ -1495,8 +1538,10 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
                   <span>Equipo ({teamUsers.length} Usuarios Sincronizados)</span>
                 </div>
                 <button
-                  className="clear-search-btn"
+                  type="button"
+                  className="team-modal-close"
                   onClick={() => setShowTeamModal(false)}
+                  title="Cerrar"
                 >
                   <X size={18} />
                 </button>
@@ -1541,7 +1586,7 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
 
               <motion.button
                 type="button"
-                className="btn-primary"
+                className="btn-primary btn-sync-users"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => syncTotalUsers(true)}
@@ -1549,7 +1594,7 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
                 style={{ width: '100%', justifyContent: 'center', padding: '10px 16px' }}
               >
                 <RefreshCw size={16} className={syncingUsers ? 'spin' : ''} />
-                <span>{syncingUsers ? 'Sincronizando desde Sheets...' : 'Sincronizar usuarios desde Google Sheets'}</span>
+                <span>{syncingUsers ? 'Sincronizando...' : 'Sincronizar usuarios desde Sheets'}</span>
               </motion.button>
             </motion.div>
           </div>
