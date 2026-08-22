@@ -7,6 +7,7 @@ import {
   pickNameColumn,
   findVencimientoColumn,
   findUserStampColumn,
+  findEncargadoColumn,
   assignClientsSequentially,
   getFieldType,
   getDisplayHeader,
@@ -610,10 +611,22 @@ export default function ClientList({ user, year, month, onSelect, onChangeMonth,
   const presentadoPorCol = useMemo(() => findUserStampColumn(headers, 'presentado'), [headers]);
   const archivadoPorCol = useMemo(() => findUserStampColumn(headers, 'archivado'), [headers]);
 
-  // Apply sequential round-robin distribution based on Vencimiento group & team users
+  // Columna real de "Encargado" (si existe en la hoja). Cuando una fila
+  // ya tiene ese valor cargado, es la asignación de verdad -- se respeta
+  // tal cual. Solo cuando está vacía se usa el round-robin como
+  // sugerencia automática (nunca se escribe sola en la hoja, es solo
+  // para no dejar la lista sin filtrar por "encargado" en clientes
+  // nuevos que todavía nadie asignó a mano).
+  const encargadoCol = useMemo(() => findEncargadoColumn(headers), [headers]);
+
   const assignedRows = useMemo(() => {
-    return assignClientsSequentially(rows, vencimientoKey, teamUsers);
-  }, [rows, vencimientoKey, teamUsers]);
+    const suggestions = assignClientsSequentially(rows, vencimientoKey, teamUsers);
+    if (!encargadoCol) return suggestions;
+    return suggestions.map((row) => {
+      const real = row[encargadoCol];
+      return real ? { ...row, _assignedUser: real } : row;
+    });
+  }, [rows, vencimientoKey, teamUsers, encargadoCol]);
 
   // Extract unique vencimiento numbers (e.g. 7, 9, 11) from dataset
   const availableVencimientos = useMemo(() => {

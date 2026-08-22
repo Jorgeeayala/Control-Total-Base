@@ -783,6 +783,130 @@ body {
   flex-shrink: 0;
 }
 
+/* Pantalla "Asignar clientes" (Super/Admin) */
+.assign-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+.assign-row-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.assign-row-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Toolbar de acciones masivas (asignación rápida / round-robin) */
+.assign-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Envuelve buscador + toolbar + paneles + filtros de esta pantalla.
+   Sin esto, los .filter-row (que no traen su propio margen -- en la
+   lista principal viven dentro de una tarjeta con gap, acá no) quedaban
+   pegados unos contra otros y contra el contador de abajo. */
+.assign-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* Panel expandible de confirmación (round-robin) o selección de usuario
+   activo (asignación rápida). Mismo tono que las tarjetas para que se
+   sienta parte del flujo, no un popup aparte. */
+.assign-confirm-box {
+  overflow: hidden;
+  background-color: var(--bg-card-hover);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Con la asignación rápida activa, la fila entera se vuelve un botón
+   grande: tocar en cualquier parte (menos el select) asigna al toque. */
+.assign-row-quick {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.assign-row-quick:hover {
+  border-color: var(--primary-border);
+  background-color: var(--bg-card-hover);
+}
+
+/* Se pinta a medida que vas asignando clientes al usuario activo -- el
+   feedback visual inmediato es lo que hace que el modo rápido se sienta
+   como "ir marcando casillas" en vez de una lista ciega. */
+.assign-row-matched {
+  background-color: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.assign-row-matched:hover {
+  background-color: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.55);
+}
+
+.assign-row-current {
+  font-size: 12px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+/* Agrupación visual por vencimiento (para ver el ciclo del round-robin) */
+.assign-group {
+  margin-bottom: 16px;
+}
+
+.assign-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.assign-group-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-subtle);
+  background-color: var(--bg-card-hover);
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+}
+
 /* Client Card List & Swipe Gestures */
 .client-list {
   list-style: none;
@@ -2087,6 +2211,38 @@ body {
     width: 100%;
     min-height: 42px;
     font-size: 13px;
+  }
+
+  /* Pantalla "Asignar clientes" en mobile: el nombre y el control
+     (select o "encargado actual") competían por la misma fila angosta y
+     el nombre se cortaba con "...". Acá se apilan: el nombre arriba con
+     todo su ancho disponible (puede pasar a 2 líneas si hace falta), el
+     control abajo ocupando todo el ancho también. */
+  .assign-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .assign-row-name {
+    white-space: normal;
+    font-size: 13px;
+  }
+
+  .assign-row-control {
+    justify-content: flex-end;
+  }
+
+  .assign-row-control .sort-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Los pills de "Estado"/"Vencimiento" con nombres largos (ej. "ANTONIO
+     GONZALEZ") necesitan más aire entre líneas al envolver, si no se
+     ven amontonados. */
+  .assign-controls .filter-pills {
+    row-gap: 8px;
   }
 }
 

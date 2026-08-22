@@ -8,10 +8,12 @@ import MonthPicker from './screens/MonthPicker';
 import ClientList from './screens/ClientList';
 import ClientDetail from './screens/ClientDetail';
 import NewClient from './screens/NewClient';
+import AssignClients from './screens/AssignClients';
 import AppSplashLoader from './components/AppSplashLoader';
 import { STORAGE_KEY_USER } from './config';
 import { formatPeriodLabel } from './utils';
-import { FileSpreadsheet, Calendar, User, Sun, Moon, Menu, X } from 'lucide-react';
+import { api } from './api';
+import { FileSpreadsheet, Calendar, User, Sun, Moon, Menu, X, UserCog } from 'lucide-react';
 import './styles.css';
 
 const pageVariants = {
@@ -38,6 +40,34 @@ export default function App() {
   const [creatingWithHeaders, setCreatingWithHeaders] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [assignClientsOpen, setAssignClientsOpen] = useState(false);
+
+  // Rol del usuario actual (SUPERUSUARIO / ADMINISTRADOR / USUARIO), para
+  // saber si mostrar la sección "Asignar clientes" del menú. Por ahora
+  // Super y Admin tienen los mismos permisos -- el día que se quieran
+  // diferenciar, es un solo chequeo acá abajo.
+  const [userRole, setUserRole] = useState(null);
+  const canAssignClients = userRole === 'SUPERUSUARIO' || userRole === 'ADMINISTRADOR';
+
+  useEffect(() => {
+    if (!user) {
+      setUserRole(null);
+      return;
+    }
+    let cancelled = false;
+    api.listUsersWithRoles()
+      .then((list) => {
+        if (cancelled) return;
+        const match = list.find((u) => u.name === user);
+        setUserRole(match ? match.role : 'USUARIO');
+      })
+      .catch(() => {
+        if (!cancelled) setUserRole('USUARIO');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('app-theme');
@@ -74,7 +104,9 @@ export default function App() {
     if (!Capacitor.isNativePlatform()) return;
 
     const listenerPromise = CapacitorApp.addListener('backButton', () => {
-      if (creatingWithHeaders) {
+      if (assignClientsOpen) {
+        setAssignClientsOpen(false);
+      } else if (creatingWithHeaders) {
         setCreatingWithHeaders(null);
       } else if (selectedClient) {
         setSelectedClient(null);
@@ -90,7 +122,7 @@ export default function App() {
     return () => {
       listenerPromise.then((listener) => listener.remove());
     };
-  }, [creatingWithHeaders, selectedClient, month, year]);
+  }, [assignClientsOpen, creatingWithHeaders, selectedClient, month, year]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -100,7 +132,7 @@ export default function App() {
   // para que no quede abierto tapando la siguiente vista.
   useEffect(() => {
     setMobileMenuOpen(false);
-  }, [year, month, selectedClient, creatingWithHeaders]);
+  }, [year, month, selectedClient, creatingWithHeaders, assignClientsOpen]);
 
   function handlePickUser(chosenUser) {
     setUser(chosenUser);
@@ -149,6 +181,7 @@ export default function App() {
                 onClick={() => {
                   setSelectedClient(null);
                   setCreatingWithHeaders(null);
+                  setAssignClientsOpen(false);
                   setMonth(null);
                 }}
                 title="Cambiar mes o año"
@@ -180,6 +213,27 @@ export default function App() {
                 </motion.div>
               </AnimatePresence>
             </motion.button>
+
+            {/* Acceso directo en desktop (ahí no hay drawer -- el
+                hamburguesa es mobile-only). En mobile esta misma función
+                vive adentro del drawer, así que acá se oculta con
+                .hide-mobile para no duplicarla. */}
+            {canAssignClients && year && month && (
+              <motion.button
+                className="pill-btn hide-mobile"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setSelectedClient(null);
+                  setCreatingWithHeaders(null);
+                  setAssignClientsOpen(true);
+                }}
+                title="Asignar clientes"
+              >
+                <UserCog size={14} />
+                <span>Asignar</span>
+              </motion.button>
+            )}
 
             {/* Píldora de usuario: visible siempre, en desktop y mobile,
                 pegada a la derecha del todo. */}
@@ -258,6 +312,21 @@ export default function App() {
                 <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}</span>
               </button>
 
+              {canAssignClients && year && month && (
+                <button
+                  type="button"
+                  className="mobile-menu-item"
+                  onClick={() => {
+                    setSelectedClient(null);
+                    setCreatingWithHeaders(null);
+                    setAssignClientsOpen(true);
+                  }}
+                >
+                  <UserCog size={17} />
+                  <span>Asignar clientes</span>
+                </button>
+              )}
+
               {/* Próximamente: Configuración, Equipo, etc. */}
             </motion.div>
           </>
@@ -288,6 +357,19 @@ export default function App() {
       return (
         <motion.div key={`month-picker-${year}`} variants={pageVariants} initial="initial" animate="animate" exit="exit">
           <MonthPicker year={year} onPick={setMonth} onChangeYear={() => setYear(null)} />
+        </motion.div>
+      );
+    }
+
+    if (assignClientsOpen) {
+      return (
+        <motion.div key={`assign-clients-${year}-${month}`} variants={pageVariants} initial="initial" animate="animate" exit="exit">
+          <AssignClients
+            user={user}
+            year={year}
+            month={month}
+            onBack={() => setAssignClientsOpen(false)}
+          />
         </motion.div>
       );
     }

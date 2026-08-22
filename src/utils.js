@@ -40,6 +40,18 @@ export function findVencimientoColumn(headers) {
   return found || null;
 }
 
+// Columna real donde se guarda el encargado/asignado de cada cliente
+// (distinto de "Presentado por:"/"Archivado por:", que son sellos de
+// quién hizo una acción puntual, no quién es responsable del cliente).
+export function findEncargadoColumn(headers) {
+  if (!headers || !headers.length) return null;
+  const pattern = /^encargad[oa]s?:?$/i;
+  let found = headers.find((h) => pattern.test(String(h).trim()));
+  if (found) return found;
+  found = headers.find((h) => /encargad[oa]/i.test(String(h).trim()));
+  return found || null;
+}
+
 export function findUserStampColumn(headers, type) {
   if (!headers || !headers.length) return null;
   const cleanType = String(type).toLowerCase();
